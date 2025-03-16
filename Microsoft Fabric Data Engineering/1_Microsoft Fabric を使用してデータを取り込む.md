@@ -1,4 +1,4 @@
-(Microsoft Fabric を使用してデータを取り込む)[https://learn.microsoft.com/ja-jp/training/paths/ingest-data-with-microsoft-fabric/]
+[Microsoft Fabric を使用してデータを取り込む](https://learn.microsoft.com/ja-jp/training/paths/ingest-data-with-microsoft-fabric/)
 
 1. Microsoft Fabric でデータフロー Gen2 を使用してデータを取り込む  
 [Microsoft Fabric でデータフロー Gen2 を使用してデータを取り込む](https://learn.microsoft.com/ja-jp/training/modules/use-dataflow-gen-2-fabric/)  
