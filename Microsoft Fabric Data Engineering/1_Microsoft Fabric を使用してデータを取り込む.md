@@ -149,10 +149,10 @@ Group by：特定の時間枠内のすべてのイベントの集計を計算す
 ウィンドウ関数の種類  
 ・タンブリングウィンドウ：固定周期で固定ウィンドウ、ウィンドウを重複させない。  
 ![alt text](./images/image.png)  
-・スライディングウィンドウ：固定ウィンドウで、ウィンドウ内のトピック数がルールできめたトピック数を上回れば検出、下回ればスキップ
+・スライディングウィンドウ：固定ウィンドウで、ウィンドウ内のトピック数がルールできめたトピック数を上回れば検出、下回ればスキップ  
 ![alt text](./images/image2.png)  
 ・セッションウィンドウ：ウィンドウ幅は可変で、アクティビティをいい感じのグループにまとめる  
-![alt text](./images/image3.png) 
+![alt text](./images/image3.png)  
 ・ホッピングウィンドウ：固定周期で固定ウィンドウ、ウィンドウを重複させる。  
 ![alt text](./images/image4.png)  
 ・スナップショットウィンドウ：タイムスタンプが同じイベントをグループ化する。
@@ -161,4 +161,56 @@ Group by：特定の時間枠内のすべてのイベントの集計を計算す
 - ウィンドウ期間：ウィンドウ幅、秒・分・時間・日  
 - ウィンドウオフセット（省略可能）：各ウィンドウ間隔の開始・終了を指定した時間分シフトする。  
 - グループ化キー：グループ化するイベントデータ内の1つ以上の列(ID列など)  
-- 集計関数：各ウィンドウのグループに適用する1つ以上の関数
+- 集計関数：各ウィンドウのグループに適用する1つ以上の関数  
+
+5. Microsoft Fabric イベントハウスでリアルタイム データを操作する  
+[Microsoft Fabric イベントハウスでリアルタイム データを操作する](https://learn.microsoft.com/ja-jp/training/modules/query-data-kql-database-microsoft-fabric/)  
+**学習の目的**  
+- イベントハウスを作成する
+- Kustoクエリ言語(KQL)を使用してリアルタイムデータのクエリを実行する
+- KQLデータベースに具体化されたビューとストアド関数を作成する  
+
+5.1. 初めに  
+Eventhouseは大量データのデータストアを備えており、時間ベースのイベントを表すデータに対して最適化されている。  
+
+5.2. Eventhouse, 5.3. KQLを効率的に使用する    
+Eventhouseには、1つ以上のKQLデータベースが含まれており、テーブル・ストアドプロシージャ・ビューなどを作成できる。  
+データソースには、静的な場所(ローカルファイル・OneLake・Azure Storage）やリアルタイムソース(Azure Event Hubs・Eventstream)  
+
+KQLデータベース内のテーブルに対するクエリ  
+Kusto照会言語(KQL)コードまたは構造化クエリ言語(SQL)の制限付きサブセットが使用可能  
+|SQL|KQL|
+|:--|:--|
+|`SELECT * FROM Automotive`|`Automotive`|
+|`SELECT TOP 100 * FROM Automotive`|`Automotive \| take 100`|
+|`SELECT  trip_id, pickup_datetime, fare_amount FROM Automotive`|`Automotive \| project  trip_id, pickup_datetime, fare_amount`|
+|`SELECT  trip_id, pickup_datetime, fare_amount FROM Automotive WHERE fare_amount > 20`|`Automotive \| where fare_amount > 20 \| project  trip_id, pickup_datetime, fare_amoun_t`|
+|`SELECT  trip_id, pickup_datetime, fare_amount FROM Automotive WHERE fare_amount > 20 ORDER BY pickup_datetime DESC`|`Automotive \| where fare_amount > 20 \| project trip_id, pickup_datetime, fare_amount \| sort by pickup_datetime desc`|  
+|`SELECT  trip_id, pickup_datetime, fare_amount FROM Automotive WHERE fare_amount > 20 ORDER BY pickup_datetime DESC` |`Automotive \| where fare_amount > 20 \| project trip_id, pickup_datetime, fare_amount \| sort by pickup_datetime desc`| 
+|`SELECT vendor_id, COUNT(*) AS trip_count FROM Automotive GROUP BY vendor_id`|`Automotive \| summarize trip_count = count() by vendor_id \| project vendor_id, trip_count`|  
+|`SELECT vendor_id, COUNT(*) AS trip_count FROM Automotive GROUP BY vendor_id`|`Automotive \| summarize trip_count = count() by vendor_id \| project vendor_id, trip_count`|  
+KQLクエリをKQLデータベースで用いるメリット => シンプルさ、パフォーマンス、柔軟性、統合  
+
+5.4. 具体化されたビューとストアド関数  
+**具体化されたビュー**  
+```KQL
+.create async materialized-view with (backfill=true)
+TripsByVendor on table Automotive
+{
+    Automotive
+    | summarize trips = count() by vendor_id, pickup_date = format_datetime(pickup_datetime, "yyyy-MM-dd")
+}
+```
+オプションを付けてビューを設定すると、既存のデータを取り込みビューを作成する。  
+
+**ストアド関数**  
+```KQL
+.create-or-alter function trips_by_min_passenger_count(num_passengers:long)
+{
+    Automotive
+    | where passenger_count >= num_passengers 
+    | project trip_id, pickup_datetime
+}
+```  
+関数にはパラメータを指定できるため、変数値を使用して同じクエリを繰り返すことができる。  
+
