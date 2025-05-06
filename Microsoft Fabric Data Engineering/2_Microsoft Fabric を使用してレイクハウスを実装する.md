@@ -52,3 +52,77 @@ Fabric or PP管理者 or M365管理者が管理センターにて有効化する
 2.4. レイクハウス内のデータを探索して変換する  
 省略  
 
+3. Microsoft FabricでApache Sparkを使用する
+[Microsoft FabricでApache Sparkを使用する](https://learn.microsoft.com/ja-jp/training/modules/use-apache-spark-work-files-lakehouse/)  
+1.3と同じため省略  
+
+4. Microsoft FabricでDelta Lakeテーブルを操作する  
+[Microsoft FabricでDelta Lakeテーブルを操作する](https://learn.microsoft.com/ja-jp/training/modules/work-delta-lake-tables-fabric/)  
+**学習の目的**  
+Sparkを用いてデルタテーブルを作成・管理・最適化、クエリと変換を行う  
+
+4.1. 初めに  
+LakehouseのテーブルはApache Sparkでよく用いられるLinux Foundation Delta Lakeテーブル形式に基づいており、バッチデータ・ストリーミングデータのリレーションデータベース機能を有効にする。  
+
+4.2. Delta Lakeについて理解する  
+LakehouseのテーブルはDeltaテーブル、DeltaテーブルはDelta形式で格納されているデータファイルに対するスキーマの抽象化。  
+テーブルごとに、Parquetデータファイルを含むフォルダーとトランザクションの詳細がJSON形式で記録されている_delta_Logフォルダーが格納される。  
+
+Deltaテーブルの利点  
+- CRUD(作成、読み取り、更新、削除)操作のサポート
+- ACIDトランザクションのサポート  
+- データのバージョン管理が可能
+- バッチデータとストリーミングデータをどちらもサポート  
+
+4.3. デルタテーブルを作成する  
+マネージドテーブル：メタストア内のテーブル定義ともとになるデータファイルの両方がlakehouseのSparkランタイムによって管理される    
+`df.write.format("delta").saveAsTable("mytable")`  
+外部テーブル：テーブル定義がメタストアに作成されるが、ParquetファイルとJSONログファイルは指定した場所に格納  
+`df.write.format("delta").saveAsTable("myexternaltable", path="Files/myexternaltable")`
+lakehouseメタストアから外部テーブルを削除しても関連するデータファイルは削除されない  
+
+テーブルを作成する方法は、dataframeから・仕様（テーブル名・列名・型を指定）・SQLから作成可能  
+
+4.3. デルタテーブルを最適化する  
+Parquetファイルを不変であるため、更新削除のたびに新しいファイルが書き込まれ、その結果、多数の小さなファイルが作成され、クエリの低速化が発生する微小ファイル問題が発生する可能性がある。  
+
+**OptimazeWrite関数**  
+書きこみを少数の大きなファイルにまとめる機能。規定でfabricではON。
+![alt text](./images/image5.png)  
+
+**最適化**  
+小さいParquetファイルを大きなファイルにまとめるメンテナンス機能、圧縮率向上とノード間の出0汰分散を効率化する  
+レイクハウスのテーブルメニューから実行可能  
+
+**Vオーダー機能**  
+optimaze実行時に選択できるfabricのparquet向けに設計された機能で読み込みを最適化する。  
+fabricでは規定で有効になっており、データの書き込み時に適用される。  
+しかし、15%程のオーバーヘッドがあるため、読み込みが少なく書き込みが多いテーブルではメリットが薄くなるため無効化したほうがいい。  
+
+**VACUUM**  
+データファイルのうち、トランザクションログで現在参照されておらず、指定された保持期間より風莉ものを削除する。  
+既定は7日間でそれより短い期間は指定できない。  
+実行するとタイムトラベルで保持期間以前までさかのぼることはできなくなる。  
+アドホックでもスケジュール実行もできる。  
+![alt text](./images/image6.png)  
+
+**パーティション分割**
+微小ファイル問題が悪化する可能性もあるため、次の観点で評価して実施するか検討する  
+
+分割が効果的になる場合  
+- データ量が非常に多い
+- テーブルを少数の大きいパーティションに分割できる
+
+分割が効果的にならない場合
+- データ量が少ない
+- 分割列のカーディナリティが大きく、パーティション数が多くなる
+- 1つの分割列に複数のレベルが発生する可能性がある  
+
+4.4. デルタテーブルを操作する  
+`DESCRIBE HISTORY products`  
+でテーブル履歴を表示し、  
+`df = spark.read.format("delta").option("versionAsOf", 0).load(delta_path)`
+のように過去のバージョンのデータを取得することも可能  
+
+4.5. ストリーミングデータにデルタテーブルを使用する  
+DeltaテーブルはSpark Structured Streamingのソースまたはシンクとして使用できる  
